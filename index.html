@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador Brazo Robótico Portuario</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0d1117; font-family: 'Courier New', monospace; }
+    canvas { display: block; }
+
+    #ui {
+      position: fixed;
+      left: 12px;
+      top: 12px;
+      background: rgba(8, 16, 32, 0.92);
+      border: 1px solid #1e4d8c;
+      border-radius: 8px;
+      padding: 14px;
+      width: 230px;
+      color: #c8d8f0;
+      font-size: 11px;
+      z-index: 100;
+      user-select: none;
+      box-shadow: 0 0 20px rgba(30, 77, 140, 0.4);
+    }
+    .panel-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #4da6ff;
+      letter-spacing: 3px;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .panel-subtitle {
+      font-size: 9px;
+      color: #607080;
+      text-align: center;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #1e3a5c;
+      padding-bottom: 8px;
+    }
+    .section-title {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: #4da6ff;
+      margin: 10px 0 6px 0;
+      border-left: 2px solid #4da6ff;
+      padding-left: 5px;
+    }
+    .joint-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+      gap: 6px;
+    }
+    .joint-label {
+      min-width: 22px;
+      color: #88aacc;
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .joint-row input[type=range] {
+      flex: 1;
+      height: 4px;
+      accent-color: #4da6ff;
+      cursor: pointer;
+    }
+    .joint-val {
+      min-width: 40px;
+      text-align: right;
+      color: #80c8ff;
+      font-size: 10px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+    button {
+      flex: 1;
+      background: #0e2040;
+      border: 1px solid #1e5090;
+      color: #80b8ff;
+      padding: 6px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: #183060; border-color: #4da6ff; color: #fff; }
+    button.active { background: #1a5020; border-color: #44cc66; color: #88ffaa; }
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .speed-row input[type=range] {
+      flex: 1;
+      height: 4px;
+      accent-color: #44cc88;
+    }
+    .speed-val { color: #44cc88; font-size: 10px; min-width: 16px; }
+    #status-box {
+      margin-top: 4px;
+      background: #060e1c;
+      border: 1px solid #1e3a5c;
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+    #status-text {
+      color: #44cc88;
+      font-size: 10px;
+      margin-bottom: 3px;
+    }
+    #boxes-status {
+      color: #607080;
+      font-size: 10px;
+    }
+    #gripper-status {
+      color: #f0a500;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    /* ── PiP Gripper Camera Panel ──────────────────────── */
+    #pip-panel {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      background: rgba(8, 16, 32, 0.94);
+      border: 1px solid #1e4d8c;
+      border-radius: 8px;
+      padding: 10px;
+      width: 342px;
+      z-index: 100;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 0 24px rgba(30, 77, 140, 0.5);
+    }
+    .pip-title {
+      font-size: 9px;
+      letter-spacing: 2.5px;
+      color: #4da6ff;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .pip-canvas-wrapper {
+      position: relative;
+      width: 320px;
+      height: 240px;
+      border: 1px solid #1e3a5c;
+      border-radius: 3px;
+      overflow: hidden;
+      background: #000;
+    }
+    #pip-canvas { display: block; }
+    .pip-crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+      pointer-events: none;
+    }
+    .ch-h {
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 1px;
+      background: rgba(68, 204, 136, 0.85);
+      transform: translateY(-50%);
+    }
+    .ch-v {
+      position: absolute;
+      left: 50%; top: 0; bottom: 0;
+      width: 1px;
+      background: rgba(68, 204, 136, 0.85);
+      transform: translateX(-50%);
+    }
+    .pip-corner {
+      position: absolute;
+      width: 10px; height: 10px;
+      border-color: rgba(68, 204, 136, 0.7);
+      border-style: solid;
+    }
+    .pip-corner.tl { top: 6px; left: 6px;  border-width: 2px 0 0 2px; }
+    .pip-corner.tr { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+    .pip-corner.bl { bottom: 6px; left: 6px;  border-width: 0 0 2px 2px; }
+    .pip-corner.br { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+    .pip-scanline {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(transparent, rgba(68,204,136,0.25), transparent);
+      animation: pip-scan 2.8s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes pip-scan {
+      0%   { top: -3px; }
+      100% { top: 100%; }
+    }
+    .pip-info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+      font-size: 10px;
+    }
+    .pip-key  { color: #607080; }
+    .pip-val  { color: #c8d8f0; font-weight: bold; }
+    .pip-bar-wrap {
+      margin-top: 5px;
+      height: 3px;
+      background: #0a1520;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .pip-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #4da6ff;
+      border-radius: 2px;
+      transition: width 0.06s linear;
+    }
+    .pip-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      padding-top: 5px;
+      border-top: 1px solid #1e3a5c;
+      font-size: 9px;
+    }
+    .pip-legend { display: flex; gap: 10px; }
+    .pip-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 3px; }
+    .pip-scan-txt { color: #607080; letter-spacing: 1px; }
+
+    /* ── Sensor panel ──────────────────────────────────────── */
+    #sensor-panel {
+      position: fixed;
+      right: 12px;
+      top: 12px;
+      background: rgba(8, 16, 32, 0.92);
+      border: 1px solid #1e4d8c;
+      border-radius: 8px;
+      padding: 14px;
+      width: 200px;
+      color: #c8d8f0;
+      font-size: 11px;
+      z-index: 100;
+      -webkit-user-select: none;
+      user-select: none;
+      box-shadow: 0 0 20px rgba(30, 77, 140, 0.4);
+      font-family: 'Courier New', monospace;
+    }
+    .sensor-live {
+      font-size: 9px;
+      color: #44cc88;
+      text-align: center;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .live-dot {
+      animation: pulse-dot 1.2s ease-in-out infinite;
+      color: #44cc88;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.15; }
+    }
+    .sensor-block {
+      border-top: 1px solid #1e3a5c;
+      padding-top: 6px;
+      margin-top: 6px;
+    }
+    .sensor-name {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: #4da6ff;
+      margin-bottom: 4px;
+    }
+    .sensor-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .sensor-label { color: #607080; font-size: 10px; }
+    .sensor-val   { color: #c8d8f0; font-size: 10px; }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div class="panel-title">BRAZO ROBOTICO</div>
+  <div class="panel-subtitle">SISTEMA DE AUTOMATIZACION PORTUARIA</div>
+
+  <div class="section-title">ARTICULACIONES</div>
+
+  <div class="joint-row">
+    <span class="joint-label">J1</span>
+    <input type="range" id="j1" min="-180" max="180" value="0" step="1">
+    <span class="joint-val" id="j1-val">0°</span>
+  </div>
+  <div class="joint-row">
+    <span class="joint-label">J2</span>
+    <input type="range" id="j2" min="-90" max="90" value="0" step="1">
+    <span class="joint-val" id="j2-val">0°</span>
+  </div>
+  <div class="joint-row">
+    <span class="joint-label">J3</span>
+    <input type="range" id="j3" min="-135" max="45" value="0" step="1">
+    <span class="joint-val" id="j3-val">0°</span>
+  </div>
+  <div class="joint-row">
+    <span class="joint-label">J4</span>
+    <input type="range" id="j4" min="-90" max="90" value="0" step="1">
+    <span class="joint-val" id="j4-val">0°</span>
+  </div>
+  <div class="joint-row">
+    <span class="joint-label">J5</span>
+    <input type="range" id="j5" min="-90" max="90" value="0" step="1">
+    <span class="joint-val" id="j5-val">0°</span>
+  </div>
+  <div class="joint-row">
+    <span class="joint-label">J6</span>
+    <input type="range" id="j6" min="-180" max="180" value="0" step="1">
+    <span class="joint-val" id="j6-val">0°</span>
+  </div>
+
+  <div class="section-title">CONTROL</div>
+  <div class="btn-row">
+    <button id="btn-auto">▶ AUTO</button>
+    <button id="btn-home">⌂ INICIO</button>
+  </div>
+  <div class="btn-row">
+    <button id="btn-grip">✋ GRIPPER</button>
+    <button id="btn-reset">↺ RESET</button>
+  </div>
+
+  <div class="section-title">VELOCIDAD</div>
+  <div class="speed-row">
+    <input type="range" id="speed" min="1" max="10" value="4" step="1">
+    <span class="speed-val" id="speed-val">4</span>
+  </div>
+
+  <div class="section-title">ESTADO</div>
+  <div id="status-box">
+    <div id="status-text">Listo</div>
+    <div id="boxes-status">Almacenadas: 0 / 5</div>
+    <div id="gripper-status">Gripper: Abierto</div>
+  </div>
+</div>
+
+<div id="pip-panel">
+  <div class="pip-title">GRIPPER CAM &nbsp;|&nbsp; SISTEMA DE VISIÓN ARTIFICIAL</div>
+
+  <div class="pip-canvas-wrapper">
+    <canvas id="pip-canvas" width="320" height="240"></canvas>
+    <div class="pip-crosshair">
+      <div class="ch-h"></div><div class="ch-v"></div>
+    </div>
+    <div class="pip-corner tl"></div>
+    <div class="pip-corner tr"></div>
+    <div class="pip-corner bl"></div>
+    <div class="pip-corner br"></div>
+    <div class="pip-scanline"></div>
+  </div>
+
+  <div class="pip-info-row">
+    <span class="pip-key">COLOR DETECTADO</span>
+    <span class="pip-val" id="pip-label">---</span>
+  </div>
+  <div class="pip-info-row">
+    <span class="pip-key">ESTADO</span>
+    <span class="pip-val" id="pip-status">LIBRE</span>
+  </div>
+
+  <div class="pip-bar-wrap">
+    <div class="pip-bar-fill" id="pip-bar"></div>
+  </div>
+
+  <div class="pip-footer">
+    <div class="pip-legend">
+      <span><span class="pip-dot" style="background:#22cc44"></span>Verde</span>
+      <span><span class="pip-dot" style="background:#dd2222"></span>Rojo</span>
+      <span><span class="pip-dot" style="background:#2080ff"></span>Tránsito</span>
+      <span><span class="pip-dot" style="background:#20cc50"></span>Colocada</span>
+    </div>
+    <span class="pip-scan-txt" id="pip-scan-txt">SISTEMA ACTIVO</span>
+  </div>
+</div>
+
+<div id="sensor-panel">
+  <div class="panel-title">SENSOR ARRAY</div>
+  <div class="sensor-live"><span id="sensor-live-dot" class="live-dot">&#9679;</span> LIVE</div>
+
+  <div class="sensor-block">
+    <div class="sensor-name">SCANNER-A &middot; PICKUP</div>
+    <div class="sensor-row">
+      <span class="sensor-label">Estado</span>
+      <span class="sensor-val" id="sa-status">&#9675; LIBRE</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Target</span>
+      <span class="sensor-val" id="sa-target">---</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Dist</span>
+      <span class="sensor-val" id="sa-dist">---</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Sweep</span>
+      <span class="sensor-val" id="sa-sweep">0&deg;</span>
+    </div>
+  </div>
+
+  <div class="sensor-block">
+    <div class="sensor-name">SCANNER-B &middot; EFFECTOR</div>
+    <div class="sensor-row">
+      <span class="sensor-label">Estado</span>
+      <span class="sensor-val" id="sb-status">&#9675; LIBRE</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Target</span>
+      <span class="sensor-val" id="sb-target">---</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Dist</span>
+      <span class="sensor-val" id="sb-dist">---</span>
+    </div>
+  </div>
+
+  <div class="sensor-block">
+    <div class="sensor-name">SCANNER-C &middot; SHELF</div>
+    <div class="sensor-row">
+      <span class="sensor-label">Estado</span>
+      <span class="sensor-val" id="sc-status">&#9675; LIBRE</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Target</span>
+      <span class="sensor-val" id="sc-target">---</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Dist</span>
+      <span class="sensor-val" id="sc-dist">---</span>
+    </div>
+    <div class="sensor-row">
+      <span class="sensor-label">Slots</span>
+      <span class="sensor-val" id="sc-slots">5 / 5</span>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/",
+    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
